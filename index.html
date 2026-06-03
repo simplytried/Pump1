@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fast Petrol Pump Tracker & Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <title>Fast Petrol Pump Manual Tracker</title>
     <style>
         :root {
             --bg-color: #f4f6f9;
@@ -57,8 +56,8 @@
         }
 
         .btn-choice {
-            padding: 20px 10px;
-            font-size: 1.3rem;
+            padding: 18px 10px;
+            font-size: 1.2rem;
             font-weight: bold;
             border: 2px solid #ccc;
             background: #fff;
@@ -71,63 +70,6 @@
             background: var(--primary) !important;
             color: white !important;
             border-color: var(--primary) !important;
-        }
-
-        /* LIVE CAMERA DISPLAY CONTAINER */
-        .scanner-container {
-            position: relative;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            overflow: hidden;
-            background: #000;
-            border: 2px solid #333;
-            cursor: pointer;
-        }
-
-        #video {
-            width: 100%;
-            height: 220px;
-            object-fit: cover;
-            display: block;
-        }
-
-        /* Centered targeting line overlay */
-        .scan-line {
-            position: absolute;
-            top: 50%;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: #dc3545;
-            pointer-events: none;
-            box-shadow: 0 0 6px #dc3545;
-        }
-
-        .btn-scan {
-            width: 100%;
-            padding: 16px;
-            font-size: 1.4rem;
-            font-weight: bold;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 6px rgba(0,123,255,0.3);
-        }
-
-        .btn-scan:disabled {
-            background: #6c757d;
-            box-shadow: none;
-        }
-
-        #scanStatus {
-            text-align: center;
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 15px;
-            font-size: 1.1rem;
         }
 
         .form-group {
@@ -150,8 +92,10 @@
             border: 2px solid #aaa;
             border-radius: 8px;
             background-color: #fff;
+            text-align: center;
         }
 
+        /* QUICK TAP BUTTON CHIPS */
         .chip-container {
             display: flex;
             flex-wrap: wrap;
@@ -168,11 +112,15 @@
             cursor: pointer;
             border: none;
             color: #333;
+            flex: 1;
+            min-width: 70px;
+            text-align: center;
         }
 
         .chip-manage {
             background: #333;
             color: white;
+            flex: none;
         }
 
         .math-panel {
@@ -207,6 +155,7 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            box-shadow: 0 4px 6px rgba(40,167,69,0.3);
         }
 
         .summary-box {
@@ -243,14 +192,12 @@
             margin-bottom: 5px;
             border-radius: 6px;
         }
-        
-        #canvas { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>⛽ Pump Flow Tracker & Scanner</h2>
+    <h2>⛽ Pump Flow Tracker (Manual Mode)</h2>
 
     <div class="card">
         <label>Select Vehicle</label>
@@ -266,16 +213,6 @@
             <button id="btn-Cash" class="btn-choice mode-btn active" onclick="setMode('Cash')">Cash</button>
             <button id="btn-Online" class="btn-choice mode-btn" onclick="setMode('Online')">Online</button>
         </div>
-
-        <label>📸 Camera View Window</label>
-        <div class="scanner-container" onclick="captureAndScanMeter()">
-            <video id="video" autoplay playsinline></video>
-            <div class="scan-line"></div>
-            <canvas id="canvas"></canvas>
-        </div>
-        
-        <button id="scanBtn" class="btn-scan" onclick="captureAndScanMeter()">TAP TO SCAN METER</button>
-        <div id="scanStatus">Align numbers with the red line and tap scan</div>
 
         <div class="form-group">
             <label>1. Bill Amount (₹)</label>
@@ -319,119 +256,19 @@
 <script>
     let selectedVehicle = 'Bike';
     let selectedMode = 'Cash';
+    
+    // Configurable quick shortcuts for instant tap-entry
     let billShortcuts = [50, 100, 150, 200, 500];
     let paidShortcuts = [100, 200, 500, 2000];
-    let ocrWorker = null;
-
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const scanStatus = document.getElementById('scanStatus');
-    const scanBtn = document.getElementById('scanBtn');
 
     if(localStorage.getItem('billShortcuts')) billShortcuts = JSON.parse(localStorage.getItem('billShortcuts'));
     if(localStorage.getItem('paidShortcuts')) paidShortcuts = JSON.parse(localStorage.getItem('paidShortcuts'));
 
     window.onload = function() {
-        initOCRWorker();
         cleanOldData();
         renderChips();
         updateLogView();
     };
-
-    // Pre-load the worker so it is ready immediately when you tap
-    async function initOCRWorker() {
-        scanStatus.innerText = "Configuring text scanning engine...";
-        try {
-            ocrWorker = await Tesseract.createWorker('eng');
-            await ocrWorker.setParameters({
-                tessedit_char_whitelist: '0123456789.',
-                tessedit_pageseg_mode: '6' 
-            });
-            startLiveStream();
-        } catch(e) {
-            scanStatus.innerText = "Engine error. Refresh page.";
-        }
-    }
-
-    async function startLiveStream() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: false
-            });
-            video.srcObject = stream;
-            scanStatus.innerText = "📸 Camera Ready. Align numbers and tap button.";
-            scanStatus.style.color = "var(--success)";
-        } catch (err) {
-            scanStatus.innerText = "Camera access denied. Enable site permission.";
-            scanStatus.style.color = "var(--danger)";
-        }
-    }
-
-    async function captureAndScanMeter() {
-        if (!ocrWorker) return;
-        
-        // UI feedback immediately
-        scanBtn.disabled = true;
-        scanBtn.innerText = "SCANNING METER DISPLAY...";
-        scanStatus.innerText = "Processing image snapshot...";
-        scanStatus.style.color = "var(--primary)";
-
-        const videoWidth = video.videoWidth || 640;
-        const videoHeight = video.videoHeight || 480;
-
-        canvas.width = videoWidth;
-        canvas.height = videoHeight;
-        
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-
-        // High-contrast pixel filter to make digital segment lines readable
-        try {
-            let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let d = imgData.data;
-            for (let i = 0; i < d.length; i += 4) {
-                let gray = (0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2]);
-                let threshold = gray > 120 ? 255 : 0;
-                d[i] = d[i+1] = d[i+2] = threshold;
-            }
-            ctx.putImageData(imgData, 0, 0);
-        } catch(e) {}
-
-        try {
-            const { data: { text } } = await ocrWorker.recognize(canvas.toDataURL('image/jpeg'));
-            
-            // Look through line text for valid decimal numbers
-            const items = text.replace(/[^0-9.\s]/g, '').split(/\s+/);
-            let matchedValue = null;
-
-            for (let item of items) {
-                if (item.includes('.')) {
-                    let val = parseFloat(item);
-                    if (!isNaN(val) && val >= 10 && val < 20000) {
-                        matchedValue = val;
-                        break;
-                    }
-                }
-            }
-
-            if (matchedValue !== null) {
-                document.getElementById('billAmount').value = matchedValue.toFixed(2);
-                scanStatus.innerText = "✅ Successfully Scanned: ₹" + matchedValue.toFixed(2);
-                scanStatus.style.color = "var(--success)";
-                calculateChange();
-            } else {
-                scanStatus.innerText = "❌ Text unclear. Please align closely and try again.";
-                scanStatus.style.color = "var(--danger)";
-            }
-        } catch (error) {
-            scanStatus.innerText = "Scan failed. Try tapping again.";
-            scanStatus.style.color = "var(--danger)";
-        } finally {
-            scanBtn.disabled = false;
-            scanBtn.innerText = "TAP TO SCAN METER";
-        }
-    }
 
     function setVehicle(vehicle) {
         selectedVehicle = vehicle;
@@ -443,6 +280,8 @@
         selectedMode = mode;
         document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('btn-' + mode).classList.add('active');
+        
+        // Hide cash-given inputs completely if transaction is Online
         document.getElementById('paidSection').style.display = (mode === 'Online') ? 'none' : 'block';
         if(mode === 'Online') document.getElementById('paidAmount').value = '';
         calculateChange();
@@ -459,6 +298,7 @@
     function applyBill(amount) {
         document.getElementById('billAmount').value = amount;
         calculateChange();
+        // Shift focus to cash input automatically to save clicks
         if(selectedMode === 'Cash') document.getElementById('paidAmount').focus();
     }
 
@@ -469,12 +309,12 @@
 
     function manageShortcuts(type) {
         let targetArray = type === 'bill' ? billShortcuts : paidShortcuts;
-        let action = prompt("Type '+' to add (e.g. +300) or '-' to remove (e.g. -500):");
+        let action = prompt("Type '+' to add custom shortcut (e.g., +300) or '-' to remove (e.g., -500):");
         if(!action) return;
         
         let operation = action.charAt(0);
         let value = parseFloat(action.substring(1).trim());
-        if(isNaN(value)) return alert("Invalid number input!");
+        if(isNaN(value)) return alert("Please input a valid number value!");
 
         if(operation === '+') { if(!targetArray.includes(value)) targetArray.push(value); }
         else if(operation === '-') { let index = targetArray.indexOf(value); if(index > -1) targetArray.splice(index, 1); }
@@ -501,9 +341,9 @@
 
     function saveTransaction() {
         const bill = parseFloat(document.getElementById('billAmount').value);
-        if(!bill || bill <= 0) return alert("Please enter a valid bill amount!");
+        if(!bill || bill <= 0) return alert("Please type or choose a valid bill amount!");
         let paid = (selectedMode === 'Online') ? bill : (parseFloat(document.getElementById('paidAmount').value) || 0);
-        if(selectedMode === 'Cash' && paid < bill) return alert("Customer cash given is LESS than total bill!");
+        if(selectedMode === 'Cash' && paid < bill) return alert("Error: Cash given is less than the total bill amount!");
 
         const record = {
             id: Date.now(),
@@ -522,12 +362,11 @@
         data.unshift(record);
         localStorage.setItem('pump_records', JSON.stringify(data));
 
+        // Clear entry panel boxes instantly for the next vehicle queue
         document.getElementById('billAmount').value = '';
         document.getElementById('paidAmount').value = '';
         document.getElementById('lblReturn').innerText = "₹0.00";
         document.getElementById('lblProfit').innerText = "₹0.00";
-        scanStatus.innerText = "Saved successfully! Ready for next vehicle.";
-        scanStatus.style.color = "var(--success)";
         updateLogView();
     }
 
