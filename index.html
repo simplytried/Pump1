@@ -73,7 +73,7 @@
             border-color: var(--primary) !important;
         }
 
-        /* LIVE VIDEO SCREEN CONTAINER */
+        /* HARDWARE FOCUS CONTAINER */
         .scanner-container {
             position: relative;
             margin-bottom: 15px;
@@ -85,21 +85,22 @@
 
         #video {
             width: 100%;
-            height: 220px;
+            height: 200px;
             object-fit: cover;
             display: block;
         }
 
-        /* Aiming Box Target Guide */
+        /* Ultra-Narrow target targeting ONLY the top line text rows */
         .scan-target-box {
             position: absolute;
             top: 25%;
-            left: 10%;
-            width: 80%;
-            height: 40%;
-            border: 3px dashed #007bff;
+            left: 5%;
+            width: 90%;
+            height: 35%;
+            border: 3px solid #28a745;
             box-sizing: border-box;
             pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
         }
 
         .scan-guide-line {
@@ -217,7 +218,7 @@
         }
 
         .history-list {
-            max-height: 300px;
+            max-height: 250px;
             overflow-y: auto;
         }
 
@@ -256,7 +257,7 @@
             <button id="btn-Online" class="btn-choice mode-btn" onclick="setMode('Online')">Online</button>
         </div>
 
-        <label>📸 Keep Amount Inside Dashed Box Only</label>
+        <label>📸 Fit ONLY 'Amount' numbers inside the green box</label>
         <div class="scanner-container">
             <video id="video" autoplay playsinline></video>
             <div class="scan-target-box">
@@ -265,7 +266,7 @@
             <canvas id="canvas"></canvas>
         </div>
         
-        <div id="scanStatus">Connecting video camera stream...</div>
+        <div id="scanStatus">Initializing smart camera loop...</div>
 
         <div class="form-group">
             <label>1. Bill Amount (₹)</label>
@@ -313,6 +314,7 @@
     let paidShortcuts = [100, 200, 500, 2000];
     let autoScanTimer = null;
     let isProcessing = false;
+    let ocrWorker = null;
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
@@ -322,37 +324,47 @@
     if(localStorage.getItem('paidShortcuts')) paidShortcuts = JSON.parse(localStorage.getItem('paidShortcuts'));
 
     window.onload = function() {
-        startLiveStream();
+        initOCRWorker();
         cleanOldData();
         renderChips();
         updateLogView();
     };
 
+    // Pre-initialize a permanent light worker background stream to eliminate engine lag
+    async function initOCRWorker() {
+        scanStatus.innerText = "Configuring digital digits tracker...";
+        ocrWorker = await Tesseract.createWorker('eng');
+        await ocrWorker.setParameters({
+            tessedit_char_whitelist: '0123456789.',
+            tessedit_pageseg_mode: '7' // Treats input box as a single inline data sequence
+        });
+        startLiveStream();
+    }
+
     async function startLiveStream() {
-        scanStatus.innerText = "Connecting auto-stream feed...";
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             });
             video.srcObject = stream;
-            scanStatus.innerText = "⏳ Looking for meter number...";
-            scanStatus.style.color = "#007bff";
+            scanStatus.innerText = "⚡ Ready! Align top row numbers inside green box.";
+            scanStatus.style.color = "var(--success)";
             
             if(autoScanTimer) clearInterval(autoScanTimer);
-            // Scan frame faster every 1.5 seconds automatically
-            autoScanTimer = setInterval(autoCaptureFrame, 1500);
+            // Scan faster (every 800ms) because using preloaded light engine worker
+            autoScanTimer = setInterval(autoCaptureFrame, 800);
             
         } catch (err) {
-            scanStatus.innerText = "Camera initialization blocked.";
+            scanStatus.innerText = "Camera permission failed.";
             scanStatus.style.color = "var(--danger)";
         }
     }
 
     function autoCaptureFrame() {
-        if (isProcessing) return;
+        if (isProcessing || !ocrWorker) return;
         
-        // Stop scanning if the operator is currently interacting with inputs manually
+        // Pause loop if user has highlighted inputs to type
         if (document.activeElement === document.getElementById('billAmount') || 
             document.activeElement === document.getElementById('paidAmount')) return;
 
@@ -365,58 +377,55 @@
         const videoWidth = video.videoWidth || 640;
         const videoHeight = video.videoHeight || 480;
 
-        // Target box crop values (matching the blue dashed alignment borders)
-        const cropX = Math.floor(videoWidth * 0.10);
+        // Tight crop focused purely on the center green zone block box
+        const cropX = Math.floor(videoWidth * 0.05);
         const cropY = Math.floor(videoHeight * 0.25);
-        const cropWidth = Math.floor(videoWidth * 0.80);
-        const cropHeight = Math.floor(videoHeight * 0.40);
+        const cropWidth = Math.floor(videoWidth * 0.90);
+        const cropHeight = Math.floor(videoHeight * 0.35);
 
         canvas.width = cropWidth;
         canvas.height = cropHeight;
         
         const ctx = canvas.getContext('2d');
-        // Crop out the background completely and look only inside the target box area
         ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-        // DIGITAL SEGMENTED DISPLAY ADJUSTMENT ENGINE
+        // PIXEL PROCESSING TO SOLVE SEGMENTED GAP DETECTIONS
         try {
             let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let d = imgData.data;
             for (let i = 0; i < d.length; i += 4) {
                 let r = d[i], g = d[i+1], b = d[i+2];
-                // Gray value
                 let gray = (0.2126 * r + 0.7152 * g + 0.0722 * b);
                 
-                // Turn numbers pure black and gaps pure white so they look connected
-                let thresholdColor = gray > 125 ? 255 : 0;
+                // Aggressive, harsh high-contrast shift
+                // Forces the light gray segments into clear solid black blocks
+                let thresholdColor = gray > 130 ? 255 : 0;
                 d[i] = d[i+1] = d[i+2] = thresholdColor;
             }
             ctx.putImageData(imgData, 0, 0);
         } catch(e) {}
 
         try {
-            const result = await Tesseract.recognize(canvas.toDataURL('image/jpeg'), 'eng', { 
-                tessedit_char_whitelist: '0123456789.',
-                tessedit_pageseg_mode: '7' // Treat the target box line as a single line entry
-            });
+            const { data: { text } } = await ocrWorker.recognize(canvas.toDataURL('image/jpeg'));
+            const cleanText = text.replace(/[^0-9.]/g, '').trim();
             
-            const cleanText = result.data.text.replace(/[^0-9.]/g, '').trim();
-            
-            if (cleanText.includes('.')) {
+            // Only capture values that have a valid decimal component
+            if (cleanText.includes('.') && cleanText.split('.')[1].length >= 2) {
                 let parsed = parseFloat(cleanText);
-                if (!isNaN(parsed) && parsed >= 10 && parsed < 25000) {
+                // Sanity check parameters for retail petroleum bills
+                if (!isNaN(parsed) && parsed >= 10 && parsed < 20000) {
                     let currentVal = parseFloat(document.getElementById('billAmount').value) || 0;
                     
                     if(Math.abs(currentVal - parsed) > 0.01) {
                         document.getElementById('billAmount').value = parsed.toFixed(2);
-                        scanStatus.innerText = "✅ Auto-Scanned: ₹" + parsed.toFixed(2);
+                        scanStatus.innerText = "⚡ Captured: ₹" + parsed.toFixed(2);
                         scanStatus.style.color = "var(--success)";
                         calculateChange();
                     }
                 }
             }
         } catch (error) {
-            // Fail safely to cycle frame loop cleanly
+            // Ignore frame capture issues to prevent pipeline stutter
         } finally {
             isProcessing = false;
         }
@@ -515,8 +524,8 @@
         document.getElementById('paidAmount').value = '';
         document.getElementById('lblReturn').innerText = "₹0.00";
         document.getElementById('lblProfit').innerText = "₹0.00";
-        scanStatus.innerText = "⏳ Looking for meter number...";
-        scanStatus.style.color = "#007bff";
+        scanStatus.innerText = "⚡ Ready for next vehicle! Align meter digits inside green box.";
+        scanStatus.style.color = "var(--success)";
         updateLogView();
     }
 
