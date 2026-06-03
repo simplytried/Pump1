@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pump Flow Tracker & Cash Drawer</title>
+    <title>Pump Flow Tracker & Cash Drawer Pro</title>
     <style>
         :root {
             --bg-color: #f4f6f9;
@@ -13,6 +13,7 @@
             --success: #28a745;
             --danger: #dc3545;
             --warning: #ffc107;
+            --dark: #343a40;
         }
 
         body {
@@ -42,12 +43,26 @@
             margin-bottom: 15px;
         }
 
-        /* CASH DRAWER DESIGN */
+        /* LIVE WALLET VALUE TOTAL BANNER */
+        .wallet-banner {
+            background: var(--dark);
+            color: #fff;
+            padding: 12px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+        .wallet-banner span {
+            color: #2bef66;
+        }
+
         .drawer-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         .drawer-box {
@@ -101,6 +116,12 @@
             border-color: var(--primary) !important;
         }
 
+        /* Alternate color styling explicitly for Diesel fuel options */
+        .btn-choice.fuel-diesel.active {
+            background: #fd7e14 !important;
+            border-color: #fd7e14 !important;
+        }
+
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 1.1rem; }
 
@@ -144,7 +165,6 @@
         .math-box { text-align: center; }
         .math-val { font-size: 2rem; font-weight: bold; }
         
-        /* SUGGESTION BOX STYLING */
         .suggestion-box {
             background: #fff3cd;
             border: 2px dashed #ffc107;
@@ -172,6 +192,19 @@
             cursor: pointer;
         }
 
+        .btn-print {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            background: #6f42c1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
         .summary-box {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -185,7 +218,7 @@
         }
         .summary-box div span { display: block; font-size: 1.2rem; font-weight: bold; }
 
-        .history-list { max-height: 220px; overflow-y: auto; }
+        .history-list { max-height: 300px; overflow-y: auto; }
         .history-item {
             padding: 12px;
             border-bottom: 1px solid #eee;
@@ -197,6 +230,24 @@
             margin-bottom: 5px;
             border-radius: 6px;
         }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 1.3rem;
+            cursor: pointer;
+            padding-left: 10px;
+        }
+
+        /* PRINT OVERRIDE STYLING SHEETS */
+        @media print {
+            body * { visibility: hidden; }
+            #historyLog, #historyLog *, .summary-box, .summary-box * { visibility: visible; }
+            .summary-box { position: absolute; top: 0; left: 0; width: 100%; margin-bottom: 30px; color: #000 !important; background: #fff !important; border: 1px solid #000; }
+            #historyLog { position: absolute; top: 120px; left: 0; width: 100%; }
+            .btn-delete { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -204,7 +255,7 @@
 <div class="container">
     
     <div class="card" style="border: 2px solid var(--primary);">
-        <h4>💵 My Pocket Cash Drawer Inventory</h4>
+        <div class="wallet-banner">Pocket Cash Balance: <span id="totalWalletCash">₹0.00</span></div>
         <div class="drawer-grid">
             <div class="drawer-box">
                 <div class="note-title">₹500 Note</div>
@@ -246,6 +297,12 @@
     </div>
 
     <div class="card">
+        <label>Select Fuel Type</label>
+        <div class="grid-2">
+            <button id="fuel-Petrol" class="btn-choice fuel-btn active" onclick="setFuel('Petrol')">⛽ Petrol</button>
+            <button id="fuel-Diesel" class="btn-choice fuel-btn fuel-diesel" onclick="setFuel('Diesel')">🚜 Diesel</button>
+        </div>
+
         <label>Select Vehicle</label>
         <div class="grid-4">
             <button id="btn-Bike" class="btn-choice vehicle-btn active" onclick="setVehicle('Bike')">Bike</button>
@@ -289,7 +346,7 @@
     </div>
 
     <div class="card">
-        <h3>Today's Summary</h3>
+        <h3>Today's Summary Ledger</h3>
         <div class="summary-box">
             <div>Cash Total<span id="sumCash">₹0</span></div>
             <div>Online Total<span id="sumOnline">₹0</span></div>
@@ -298,16 +355,18 @@
 
         <h3>Recent Records</h3>
         <div class="history-list" id="historyLog"></div>
+
+        <button class="btn-print" onclick="window.print()">🖨️ PRINT TRANSACTION LIST</button>
     </div>
 </div>
 
 <script>
+    let selectedFuel = 'Petrol';
     let selectedVehicle = 'Bike';
     let selectedMode = 'Cash';
+    
     let billShortcuts = [50, 100, 150, 200, 500];
     let paidShortcuts = [100, 200, 500, 2000];
-    
-    // Virtual cash drawer state variable
     let cashDrawer = { 500: 6, 200: 0, 100: 10, 50: 2, 20: 0, 10: 0 };
     let temporarySuggestedNotes = null;
 
@@ -323,9 +382,12 @@
     };
 
     function updateDrawerUI() {
+        let grandTotal = 0;
         for (let note in cashDrawer) {
             document.getElementById(`count-${note}`).innerText = cashDrawer[note];
+            grandTotal += parseInt(note) * cashDrawer[note];
         }
+        document.getElementById('totalWalletCash').innerText = "₹" + grandTotal.toFixed(2);
         localStorage.setItem('cashDrawer', JSON.stringify(cashDrawer));
     }
 
@@ -335,13 +397,18 @@
         calculateChange();
     }
 
+    function setFuel(fuel) {
+        selectedFuel = fuel;
+        document.querySelectorAll('.fuel-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('fuel-' + fuel).classList.add('active');
+    }
+
     function setVehicle(vehicle) {
         selectedVehicle = vehicle;
         document.querySelectorAll('.vehicle-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('btn-' + vehicle).classList.add('active');
     }
 
-    // Adjust visibility depending on transaction type
     function setMode(mode) {
         selectedMode = mode;
         document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
@@ -403,7 +470,6 @@
         document.getElementById('lblReturn').innerText = "₹" + changeToReturn.toFixed(2);
         document.getElementById('lblProfit').innerText = "₹" + profitPaise.toFixed(2);
 
-        // TRIGGER NOTE SUGGESTION LOGIC
         if (selectedMode === 'Cash' && changeToReturn > 0) {
             suggestNotesToGive(changeToReturn);
         } else {
@@ -412,21 +478,16 @@
         }
     }
 
-    // SMART SMART NOTES ALGORITHM MATCHING YOUR LIVE POCKET BALANCE
     function suggestNotesToGive(amountNeeded) {
         let denominations = [500, 200, 100, 50, 20, 10];
         let runningAmount = amountNeeded;
         let suggestionResult = {};
-        
-        // Clone drawer inventory to calculate safely without mutating original state immediately
         let tempDrawer = { ...cashDrawer };
 
         for (let denom of denominations) {
             if (runningAmount >= denom) {
                 let notesNeeded = Math.floor(runningAmount / denom);
-                // Use only what is actually inside your drawer pocket
                 let notesToUse = Math.min(notesNeeded, tempDrawer[denom]);
-                
                 if (notesToUse > 0) {
                     suggestionResult[denom] = notesToUse;
                     runningAmount -= (notesToUse * denom);
@@ -436,8 +497,7 @@
 
         const container = document.getElementById('suggestionContainer');
         if (runningAmount === 0) {
-            // Perfect match found! Build output string
-            let textOutput = "👉 Give Handout Change: ";
+            let textOutput = "👉 Handout Change: ";
             let parts = [];
             for (let denom in suggestionResult) {
                 parts.push(`${suggestionResult[denom]} note(s) of ₹${denom}`);
@@ -449,8 +509,7 @@
             container.style.display = "block";
             temporarySuggestedNotes = suggestionResult; 
         } else {
-            // Missing specific matching bills in inventory pocket
-            container.innerHTML = `⚠️ Short on cash change notes! Still need to hand out ₹${runningAmount}. Please add more notes above.`;
+            container.innerHTML = `⚠️ Short on cash change notes! Still need to hand out ₹${runningAmount}.`;
             container.style.backgroundColor = "#f8d7da";
             container.style.borderColor = "#dc3545";
             container.style.color = "#721c24";
@@ -465,7 +524,6 @@
         let paid = (selectedMode === 'Online') ? bill : (parseFloat(document.getElementById('paidAmount').value) || 0);
         if(selectedMode === 'Cash' && paid < bill) return alert("Paid cash is less than the bill amount!");
 
-        // DEDUCT FROM LIVE INVENTORY AUTOMATICALLY ON SAVE
         if (selectedMode === 'Cash' && temporarySuggestedNotes) {
             for (let denom in temporarySuggestedNotes) {
                 cashDrawer[denom] -= temporarySuggestedNotes[denom];
@@ -477,6 +535,7 @@
             id: Date.now(),
             time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             timestamp: Date.now(),
+            fuel: selectedFuel,
             vehicle: selectedVehicle,
             mode: selectedMode,
             bill: bill,
@@ -499,6 +558,20 @@
         updateLogView();
     }
 
+    // FUNCTION TO DELETE A SPECIFIC ITEM BY ITS UNIQUE ID
+    function deleteRecord(recordId) {
+        if(!confirm("Are you sure you want to delete this transaction entry?")) return;
+        
+        let data = [];
+        try { let existing = localStorage.getItem('pump_records'); if(existing) data = JSON.parse(existing); } catch(e) {}
+        
+        // Remove the specific entry matching the id
+        data = data.filter(item => item.id !== recordId);
+        localStorage.setItem('pump_records', JSON.stringify(data));
+        
+        updateLogView();
+    }
+
     function cleanOldData() {
         let data = [];
         try { let existing = localStorage.getItem('pump_records'); if(existing) data = JSON.parse(existing); } catch(e) {}
@@ -514,7 +587,21 @@
         data.forEach(item => {
             if(item.mode === 'Cash') cashTotal += item.bill; else onlineTotal += item.bill;
             profitTotal += item.profit;
-            logHtml += `<div class="history-item"><div><strong>${item.time}</strong> - ${item.vehicle} (${item.mode})<br><small>Bill: ₹${item.bill.toFixed(2)} | Recd: ₹${item.paid.toFixed(2)}</small></div><div style="text-align:right;"><span class="text-danger">Return: ₹${item.returned.toFixed(2)}</span><br><span class="text-success">Profit: +₹${item.profit.toFixed(2)}</span></div></div>`;
+            
+            // Appending fuel and vehicle data along with a click-action delete icon
+            logHtml += `<div class="history-item">
+                <div>
+                    <strong>${item.time}</strong> - <span style="color:#721c24; font-weight:bold;">${item.fuel}</span> (${item.vehicle} - ${item.mode})<br>
+                    <small>Bill: ₹${item.bill.toFixed(2)} | Recd: ₹${item.paid.toFixed(2)}</small>
+                </div>
+                <div style="text-align:right; display:flex; align-items:center;">
+                    <div>
+                        <span class="text-danger">Return: ₹${item.returned.toFixed(2)}</span><br>
+                        <span class="text-success">Profit: +₹${item.profit.toFixed(2)}</span>
+                    </div>
+                    <button class="btn-delete" onclick="deleteRecord(${item.id})">❌</button>
+                </div>
+            </div>`;
         });
 
         document.getElementById('sumCash').innerText = "₹" + cashTotal.toFixed(2);
