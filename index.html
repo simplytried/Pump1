@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fast Petrol Pump Tracker & Scanner</title>
-    <!-- Loading Tesseract.js for instant meter scanning -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         :root {
@@ -74,7 +73,7 @@
             border-color: var(--primary) !important;
         }
 
-        /* IN-PAGE LIVE VIDEO CONTAINER */
+        /* LIVE VIDEO SCREEN CONTAINER */
         .scanner-container {
             position: relative;
             margin-bottom: 15px;
@@ -91,23 +90,26 @@
             display: block;
         }
 
-        /* Scan overlay guide line indicator */
-        .scan-guide {
+        /* Aiming Box Target Guide */
+        .scan-target-box {
             position: absolute;
-            top: 50%;
-            left: 5%;
-            width: 90%;
-            height: 2px;
-            background: rgba(220, 53, 69, 0.6);
-            box-shadow: 0 0 8px #dc3545;
+            top: 25%;
+            left: 10%;
+            width: 80%;
+            height: 40%;
+            border: 3px dashed #007bff;
+            box-sizing: border-box;
             pointer-events: none;
-            animation: pulse 1.5s infinite;
         }
 
-        @keyframes pulse {
-            0% { opacity: 0.3; }
-            50% { opacity: 1; }
-            100% { opacity: 0.3; }
+        .scan-guide-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: #dc3545;
+            pointer-events: none;
         }
 
         #scanStatus {
@@ -240,7 +242,6 @@
     <h2>⛽ Pump Flow Tracker & Scanner</h2>
 
     <div class="card">
-        <!-- Vehicle Select -->
         <label>Select Vehicle</label>
         <div class="grid-4">
             <button id="btn-Bike" class="btn-choice vehicle-btn active" onclick="setVehicle('Bike')">Bike</button>
@@ -249,38 +250,35 @@
             <button id="btn-Truck" class="btn-choice vehicle-btn" onclick="setVehicle('Truck')">Truck</button>
         </div>
 
-        <!-- Payment Mode -->
         <label>Select Payment Mode</label>
         <div class="grid-2">
             <button id="btn-Cash" class="btn-choice mode-btn active" onclick="setMode('Cash')">Cash</button>
             <button id="btn-Online" class="btn-choice mode-btn" onclick="setMode('Online')">Online</button>
         </div>
 
-        <!-- IN-PAGE EMBEDDED AUTOMATIC CAMERA -->
-        <label>📸 Live Auto-Scanning Feed (Align numbers to center)</label>
+        <label>📸 Keep Amount Inside Dashed Box Only</label>
         <div class="scanner-container">
             <video id="video" autoplay playsinline></video>
-            <div class="scan-guide"></div>
+            <div class="scan-target-box">
+                <div class="scan-guide-line"></div>
+            </div>
             <canvas id="canvas"></canvas>
         </div>
         
-        <div id="scanStatus">Initializing camera stream...</div>
+        <div id="scanStatus">Connecting video camera stream...</div>
 
-        <!-- Bill Amount Input -->
         <div class="form-group">
             <label>1. Bill Amount (₹)</label>
             <input type="number" step="0.01" id="billAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
             <div class="chip-container" id="quickBillChips"></div>
         </div>
 
-        <!-- Paid Amount Input -->
         <div class="form-group" id="paidSection">
             <label style="color: #007bff;">2. Cash Given by Customer (₹)</label>
             <input type="number" step="0.01" id="paidAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
             <div class="chip-container" id="quickPaidChips"></div>
         </div>
 
-        <!-- Live Calculation Outputs -->
         <div class="math-panel">
             <div class="math-box">
                 <div style="font-weight: bold;">Return to Customer</div>
@@ -295,7 +293,6 @@
         <button class="btn-submit" onclick="saveTransaction()">Save Entry</button>
     </div>
 
-    <!-- LIVE DATA LOGS -->
     <div class="card">
         <h3>Today & Yesterday's Summary</h3>
         <div class="summary-box">
@@ -339,25 +336,23 @@
                 audio: false
             });
             video.srcObject = stream;
-            scanStatus.innerText = "🔍 System active. Point camera at the meter display...";
-            scanStatus.style.color = "var(--primary)";
+            scanStatus.innerText = "⏳ Looking for meter number...";
+            scanStatus.style.color = "#007bff";
             
-            // Start hands-free automatic capture loop checking every 2 seconds
             if(autoScanTimer) clearInterval(autoScanTimer);
-            autoScanTimer = setInterval(autoCaptureFrame, 2000);
+            // Scan frame faster every 1.5 seconds automatically
+            autoScanTimer = setInterval(autoCaptureFrame, 1500);
             
         } catch (err) {
-            scanStatus.innerText = "Camera error. Make sure HTTPS access permissions are enabled.";
+            scanStatus.innerText = "Camera initialization blocked.";
             scanStatus.style.color = "var(--danger)";
         }
     }
 
-    // Automated internal frame capture loop
     function autoCaptureFrame() {
-        // Drop the loop frame if the background engine is already analyzing a value
         if (isProcessing) return;
         
-        // Skip scanning if user has already entered a value or is typing
+        // Stop scanning if the operator is currently interacting with inputs manually
         if (document.activeElement === document.getElementById('billAmount') || 
             document.activeElement === document.getElementById('paidAmount')) return;
 
@@ -367,65 +362,61 @@
     async function captureAndScanMeter() {
         isProcessing = true;
         
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        const ctx = canvas.getContext('2d');
-        
-        // Draw video frame to hidden processing canvas
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const videoWidth = video.videoWidth || 640;
+        const videoHeight = video.videoHeight || 480;
 
-        // --- HARDWARE TEXT FILTER ENGINE ADJUSTMENT ---
-        // Grab image data pixels to threshold contrast for clear LCD digit segmentation
+        // Target box crop values (matching the blue dashed alignment borders)
+        const cropX = Math.floor(videoWidth * 0.10);
+        const cropY = Math.floor(videoHeight * 0.25);
+        const cropWidth = Math.floor(videoWidth * 0.80);
+        const cropHeight = Math.floor(videoHeight * 0.40);
+
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        
+        const ctx = canvas.getContext('2d');
+        // Crop out the background completely and look only inside the target box area
+        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+        // DIGITAL SEGMENTED DISPLAY ADJUSTMENT ENGINE
         try {
             let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             let d = imgData.data;
             for (let i = 0; i < d.length; i += 4) {
-                // Standard grayscale conversion
                 let r = d[i], g = d[i+1], b = d[i+2];
-                let v = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+                // Gray value
+                let gray = (0.2126 * r + 0.7152 * g + 0.0722 * b);
                 
-                // Harsh binary black/white contrast cutoff to eliminate glare lines seen in 1000611288.jpg
-                let thresh = v > 110 ? 255 : 0; 
-                d[i] = d[i+1] = d[i+2] = thresh;
+                // Turn numbers pure black and gaps pure white so they look connected
+                let thresholdColor = gray > 125 ? 255 : 0;
+                d[i] = d[i+1] = d[i+2] = thresholdColor;
             }
             ctx.putImageData(imgData, 0, 0);
-        } catch(e) { /* Fallback to raw frame if image manipulation blocks security context */ }
+        } catch(e) {}
 
         try {
-            // whitelist setup ensures Tesseract doesn't misread '4' as 'A' or '0' as 'O'
             const result = await Tesseract.recognize(canvas.toDataURL('image/jpeg'), 'eng', { 
                 tessedit_char_whitelist: '0123456789.',
-                tessedit_pageseg_mode: '6' // Assume a single uniform block of text
+                tessedit_pageseg_mode: '7' // Treat the target box line as a single line entry
             });
             
-            // Extract tokens matching numerical string structures
-            const numbers = result.data.text.replace(/[^0-9.\s]/g, '').split(/\s+/);
+            const cleanText = result.data.text.replace(/[^0-9.]/g, '').trim();
             
-            let foundBill = null;
-            for (let numStr of numbers) {
-                // Ensure decimal dot notation exists to target the primary reading line
-                if(numStr.includes('.')){
-                    let parsed = parseFloat(numStr);
-                    // Match standard structural boundaries for target meter outputs
-                    if (!isNaN(parsed) && parsed >= 10 && parsed < 20000) { 
-                        foundBill = parsed;
-                        break;
+            if (cleanText.includes('.')) {
+                let parsed = parseFloat(cleanText);
+                if (!isNaN(parsed) && parsed >= 10 && parsed < 25000) {
+                    let currentVal = parseFloat(document.getElementById('billAmount').value) || 0;
+                    
+                    if(Math.abs(currentVal - parsed) > 0.01) {
+                        document.getElementById('billAmount').value = parsed.toFixed(2);
+                        scanStatus.innerText = "✅ Auto-Scanned: ₹" + parsed.toFixed(2);
+                        scanStatus.style.color = "var(--success)";
+                        calculateChange();
                     }
                 }
             }
-
-            if (foundBill !== null) {
-                let currentVal = parseFloat(document.getElementById('billAmount').value) || 0;
-                // Only update and change context if the new value is different
-                if(Math.abs(currentVal - foundBill) > 0.05) {
-                    document.getElementById('billAmount').value = foundBill.toFixed(2);
-                    scanStatus.innerText = "⚡ Auto-Captured: ₹" + foundBill.toFixed(2);
-                    scanStatus.style.color = "var(--success)";
-                    calculateChange();
-                }
-            }
         } catch (error) {
-            // Fail silently on background intervals to maintain continuous workflow speed
+            // Fail safely to cycle frame loop cleanly
         } finally {
             isProcessing = false;
         }
@@ -524,8 +515,8 @@
         document.getElementById('paidAmount').value = '';
         document.getElementById('lblReturn').innerText = "₹0.00";
         document.getElementById('lblProfit').innerText = "₹0.00";
-        scanStatus.innerText = "🔍 Entry Saved! Align next meter display to auto-scan...";
-        scanStatus.style.color = "var(--primary)";
+        scanStatus.innerText = "⏳ Looking for meter number...";
+        scanStatus.style.color = "#007bff";
         updateLogView();
     }
 
