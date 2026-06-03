@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Petrol Pump Tracker & Scanner</title>
+    <!-- Loading Tesseract.js for instant meter scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --primary: #007bff;
+            --success: #28a745;
+            --danger: #dc3545;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h2, h3 {
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-choice {
+            padding: 20px 10px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border: 2px solid #ccc;
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #333;
+        }
+
+        .btn-choice.active {
+            background: var(--primary) !important;
+            color: white !important;
+            border-color: var(--primary) !important;
+        }
+
+        /* IN-PAGE LIVE VIDEO CONTAINER */
+        .scanner-container {
+            position: relative;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            border: 2px solid #333;
+        }
+
+        #video {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .btn-scan-action {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            white-space: nowrap;
+        }
+
+        .btn-scan-action:active {
+            background: #0056b3;
+        }
+
+        #scanStatus {
+            text-align: center;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        .big-input {
+            width: 100%;
+            padding: 15px 10px;
+            font-size: 2.2rem;
+            font-weight: bold;
+            box-sizing: border-box;
+            border: 2px solid #aaa;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+
+        .chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .chip {
+            background: #e0e0e0;
+            padding: 10px 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 20px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .chip-manage {
+            background: #333;
+            color: white;
+        }
+
+        .math-panel {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .math-box {
+            text-align: center;
+        }
+
+        .math-val {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+
+        .btn-submit {
+            width: 100%;
+            padding: 18px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .summary-box {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            text-align: center;
+            background: #343a40;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .summary-box div span {
+            display: block;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            margin-bottom: 5px;
+            border-radius: 6px;
+        }
+        
+        #canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⛽ Pump Flow Tracker & Scanner</h2>
+
+    <div class="card">
+        <!-- Vehicle Select -->
+        <label>Select Vehicle</label>
+        <div class="grid-4">
+            <button id="btn-Bike" class="btn-choice vehicle-btn active" onclick="setVehicle('Bike')">Bike</button>
+            <button id="btn-Car" class="btn-choice vehicle-btn" onclick="setVehicle('Car')">Car</button>
+            <button id="btn-Tractor" class="btn-choice vehicle-btn" onclick="setVehicle('Tractor')">Tractor</button>
+            <button id="btn-Truck" class="btn-choice vehicle-btn" onclick="setVehicle('Truck')">Truck</button>
+        </div>
+
+        <!-- Payment Mode -->
+        <label>Select Payment Mode</label>
+        <div class="grid-2">
+            <button id="btn-Cash" class="btn-choice mode-btn active" onclick="setMode('Cash')">Cash</button>
+            <button id="btn-Online" class="btn-choice mode-btn" onclick="setMode('Online')">Online</button>
+        </div>
+
+        <!-- IN-PAGE EMBEDDED LIVE CAMERA -->
+        <label>📸 Live Meter Feed Container</label>
+        <div class="scanner-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <button class="btn-scan-action" onclick="captureAndScanMeter()">TAP TO SCAN METER</button>
+        </div>
+        
+        <div id="scanStatus">Initializing camera hardware...</div>
+
+        <!-- Bill Amount Input -->
+        <div class="form-group">
+            <label>1. Bill Amount (₹)</label>
+            <input type="number" step="0.01" id="billAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
+            <div class="chip-container" id="quickBillChips"></div>
+        </div>
+
+        <!-- Paid Amount Input -->
+        <div class="form-group" id="paidSection">
+            <label style="color: #007bff;">2. Cash Given by Customer (₹)</label>
+            <input type="number" step="0.01" id="paidAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
+            <div class="chip-container" id="quickPaidChips"></div>
+        </div>
+
+        <!-- Live Calculation Outputs -->
+        <div class="math-panel">
+            <div class="math-box">
+                <div style="font-weight: bold;">Return to Customer</div>
+                <div id="lblReturn" class="math-val text-danger">₹0.00</div>
+            </div>
+            <div class="math-box">
+                <div style="font-weight: bold;">Extra Profit (Paise)</div>
+                <div id="lblProfit" class="math-val text-success">₹0.00</div>
+            </div>
+        </div>
+
+        <button class="btn-submit" onclick="saveTransaction()">Save Entry</button>
+    </div>
+
+    <!-- LIVE DATA LOGS -->
+    <div class="card">
+        <h3>Today & Yesterday's Summary</h3>
+        <div class="summary-box">
+            <div>Cash Total<span id="sumCash">₹0</span></div>
+            <div>Online Total<span id="sumOnline">₹0</span></div>
+            <div>Extra Profit<span id="sumProfit">₹0</span></div>
+        </div>
+
+        <h3>Recent Records</h3>
+        <div class="history-list" id="historyLog"></div>
+    </div>
+</div>
+
+<script>
+    let selectedVehicle = 'Bike';
+    let selectedMode = 'Cash';
+    let billShortcuts = [50, 100, 200];
+    let paidShortcuts = [100, 200, 500, 2000];
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const scanStatus = document.getElementById('scanStatus');
+
+    if(localStorage.getItem('billShortcuts')) billShortcuts = JSON.parse(localStorage.getItem('billShortcuts'));
+    if(localStorage.getItem('paidShortcuts')) paidShortcuts = JSON.parse(localStorage.getItem('paidShortcuts'));
+
+    window.onload = function() {
+        startLiveStream();
+        cleanOldData();
+        renderChips();
+        updateLogView();
+    };
+
+    // Requests back camera stream inside page container
+    async function startLiveStream() {
+        scanStatus.innerText = "Connecting live stream feed...";
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            video.srcObject = stream;
+            scanStatus.innerText = "Live Stream Active. Ready to capture!";
+            scanStatus.style.color = "var(--success)";
+        } catch (err) {
+            scanStatus.innerText = "Permissions Denied. Please open via local web server address!";
+            scanStatus.style.color = "var(--danger)";
+        }
+    }
+
+    // Capture frames instantly directly inside the document view context
+    async function captureAndScanMeter() {
+        scanStatus.innerText = "⏳ Reading display values... Stand still!";
+        scanStatus.style.color = "#dc3545";
+
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        try {
+            const result = await Tesseract.recognize(canvas.toDataURL('image/jpeg'), 'eng', { tessedit_char_whitelist: '0123456789.' });
+            const numbers = result.data.text.replace(/[^0-9.\s]/g, '').split(/\s+/);
+            
+            let foundBill = null;
+            for (let numStr of numbers) {
+                let parsed = parseFloat(numStr);
+                if (!isNaN(parsed) && parsed > 5) { 
+                    foundBill = parsed;
+                    break;
+                }
+            }
+
+            if (foundBill !== null) {
+                document.getElementById('billAmount').value = foundBill.toFixed(2);
+                scanStatus.innerText = "✅ Captured: ₹" + foundBill.toFixed(2);
+                scanStatus.style.color = "var(--success)";
+                calculateChange();
+                document.getElementById('paidAmount').focus();
+            } else {
+                scanStatus.innerText = "❌ Text blurry. Reposition camera view window.";
+                scanStatus.style.color = "var(--danger)";
+            }
+        } catch (error) {
+            scanStatus.innerText = "❌ Processing timed out. Tap to retry.";
+            scanStatus.style.color = "var(--danger)";
+        }
+    }
+
+    function setVehicle(vehicle) {
+        selectedVehicle = vehicle;
+        document.querySelectorAll('.vehicle-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btn-' + vehicle).classList.add('active');
+    }
+
+    function setMode(mode) {
+        selectedMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btn-' + mode).classList.add('active');
+        document.getElementById('paidSection').style.display = (mode === 'Online') ? 'none' : 'block';
+        if(mode === 'Online') document.getElementById('paidAmount').value = '';
+        calculateChange();
+    }
+
+    function renderChips() {
+        billShortcuts.sort((a, b) => a - b);
+        paidShortcuts.sort((a, b) => a - b);
+
+        document.getElementById('quickBillChips').innerHTML = billShortcuts.map(amt => `<button class="chip" onclick="applyBill(${amt})">₹${amt}</button>`).join('') + `<button class="chip chip-manage" onclick="manageShortcuts('bill')">+/- Edit</button>`;
+        document.getElementById('quickPaidChips').innerHTML = paidShortcuts.map(amt => `<button class="chip" onclick="applyPaid(${amt})">₹${amt}</button>`).join('') + `<button class="chip chip-manage" onclick="manageShortcuts('paid')">+/- Edit</button>`;
+    }
+
+    function applyBill(amount) {
+        document.getElementById('billAmount').value = amount;
+        calculateChange();
+        if(selectedMode === 'Cash') document.getElementById('paidAmount').focus();
+    }
+
+    function applyPaid(amount) {
+        document.getElementById('paidAmount').value = amount;
+        calculateChange();
+    }
+
+    function manageShortcuts(type) {
+        let targetArray = type === 'bill' ? billShortcuts : paidShortcuts;
+        let action = prompt("Type '+' to add (e.g. +300) or '-' to remove (e.g. -500):");
+        if(!action) return;
+        
+        let operation = action.charAt(0);
+        let value = parseFloat(action.substring(1).trim());
+        if(isNaN(value)) return alert("Invalid number input!");
+
+        if(operation === '+') { if(!targetArray.includes(value)) targetArray.push(value); }
+        else if(operation === '-') { let index = targetArray.indexOf(value); if(index > -1) targetArray.splice(index, 1); }
+        else { return alert("Use + or - symbols"); }
+
+        localStorage.setItem(type === 'bill' ? 'billShortcuts' : 'paidShortcuts', JSON.stringify(targetArray));
+        renderChips();
+    }
+
+    function calculateChange() {
+        const bill = parseFloat(document.getElementById('billAmount').value) || 0;
+        let paid = (selectedMode === 'Online') ? bill : (parseFloat(document.getElementById('paidAmount').value) || 0);
+
+        let changeToReturn = 0, profitPaise = 0;
+        if (paid > bill) {
+            changeToReturn = Math.floor(paid - bill);
+            let diff = (paid - bill) - changeToReturn;
+            if(diff > 0) profitPaise = diff;
+        } else if (paid === Math.ceil(bill) && bill % 1 !== 0) {
+            profitPaise = paid - bill;
+        }
+        document.getElementById('lblReturn').innerText = "₹" + changeToReturn.toFixed(2);
+        document.getElementById('lblProfit').innerText = "₹" + profitPaise.toFixed(2);
+    }
+
+    function saveTransaction() {
+        const bill = parseFloat(document.getElementById('billAmount').value);
+        if(!bill || bill <= 0) return alert("Please enter a valid bill amount!");
+        let paid = (selectedMode === 'Online') ? bill : (parseFloat(document.getElementById('paidAmount').value) || 0);
+        if(selectedMode === 'Cash' && paid < bill) return alert("Customer cash given is LESS than the total bill!");
+
+        const record = {
+            id: Date.now(),
+            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            timestamp: Date.now(),
+            vehicle: selectedVehicle,
+            mode: selectedMode,
+            bill: bill,
+            paid: paid,
+            returned: parseFloat(document.getElementById('lblReturn').innerText.replace('₹','')) || 0,
+            profit: parseFloat(document.getElementById('lblProfit').innerText.replace('₹','')) || 0
+        };
+
+        let data = [];
+        try { let existing = localStorage.getItem('pump_records'); if(existing) data = JSON.parse(existing); } catch(e) {}
+        data.unshift(record);
+        localStorage.setItem('pump_records', JSON.stringify(data));
+
+        document.getElementById('billAmount').value = '';
+        document.getElementById('paidAmount').value = '';
+        document.getElementById('lblReturn').innerText = "₹0.00";
+        document.getElementById('lblProfit').innerText = "₹0.00";
+        scanStatus.innerText = "Entry Saved! Ready for next check.";
+        scanStatus.style.color = "var(--success)";
+        updateLogView();
+    }
+
+    function cleanOldData() {
+        let data = [];
+        try { let existing = localStorage.getItem('pump_records'); if(existing) data = JSON.parse(existing); } catch(e) {}
+        const fortyEightHoursAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
+        localStorage.setItem('pump_records', JSON.stringify(data.filter(item => item.timestamp >= fortyEightHoursAgo)));
+    }
+
+    function updateLogView() {
+        let data = [];
+        try { let existing = localStorage.getItem('pump_records'); if(existing) data = JSON.parse(existing); } catch(e) {}
+        let cashTotal = 0, onlineTotal = 0, profitTotal = 0, logHtml = '';
+
+        data.forEach(item => {
+            if(item.mode === 'Cash') cashTotal += item.bill; else onlineTotal += item.bill;
+            profitTotal += item.profit;
+            logHtml += `<div class="history-item"><div><strong>${item.time}</strong> - ${item.vehicle} (${item.mode})<br><small>Bill: ₹${item.bill.toFixed(2)} | Recd: ₹${item.paid.toFixed(2)}</small></div><div style="text-align:right;"><span class="text-danger">Return: ₹${item.returned.toFixed(2)}</span><br><span class="text-success">Profit: +₹${item.profit.toFixed(2)}</span></div></div>`;
+        });
+
+        document.getElementById('sumCash').innerText = "₹" + cashTotal.toFixed(2);
+        document.getElementById('sumOnline').innerText = "₹" + onlineTotal.toFixed(2);
+        document.getElementById('sumProfit').innerText = "₹" + profitTotal.toFixed(2);
+        document.getElementById('historyLog').innerHTML = logHtml || '<p style="text-align:center;color:#666;">No logs available.</p>';
+    }
+</script>
+</body>
+</html>
