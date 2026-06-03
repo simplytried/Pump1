@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fast Petrol Pump Manual Tracker</title>
+    <title>Pump Flow Tracker & Cash Drawer</title>
     <style>
         :root {
             --bg-color: #f4f6f9;
@@ -12,6 +12,7 @@
             --primary: #007bff;
             --success: #28a745;
             --danger: #dc3545;
+            --warning: #ffc107;
         }
 
         body {
@@ -28,7 +29,7 @@
             margin: 0 auto;
         }
 
-        h2, h3 {
+        h2, h3, h4 {
             margin: 10px 0;
             text-align: center;
         }
@@ -41,19 +42,47 @@
             margin-bottom: 15px;
         }
 
-        .grid-4 {
+        /* CASH DRAWER DESIGN */
+        .drawer-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
+        .drawer-box {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ccc;
         }
+
+        .note-title {
+            font-weight: bold;
+            font-size: 0.95rem;
+            color: #495057;
+        }
+
+        .note-count {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 4px 0;
+            color: #000;
+        }
+
+        .counter-btn {
+            width: 40%;
+            padding: 4px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            border: 1px solid #aaa;
+        }
+
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
 
         .btn-choice {
             padding: 18px 10px;
@@ -72,16 +101,8 @@
             border-color: var(--primary) !important;
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-            font-size: 1.1rem;
-        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 1.1rem; }
 
         .big-input {
             width: 100%;
@@ -95,33 +116,20 @@
             text-align: center;
         }
 
-        /* QUICK TAP BUTTON CHIPS */
-        .chip-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
+        .chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
         .chip {
             background: #e0e0e0;
-            padding: 12px 18px;
-            font-size: 1.2rem;
+            padding: 12px 16px;
+            font-size: 1.1rem;
             font-weight: bold;
             border-radius: 20px;
             cursor: pointer;
             border: none;
             color: #333;
             flex: 1;
-            min-width: 70px;
             text-align: center;
         }
-
-        .chip-manage {
-            background: #333;
-            color: white;
-            flex: none;
-        }
+        .chip-manage { background: #333; color: white; flex: none; }
 
         .math-panel {
             background: #e9ecef;
@@ -133,13 +141,20 @@
             gap: 10px;
         }
 
-        .math-box {
+        .math-box { text-align: center; }
+        .math-val { font-size: 2rem; font-weight: bold; }
+        
+        /* SUGGESTION BOX STYLING */
+        .suggestion-box {
+            background: #fff3cd;
+            border: 2px dashed #ffc107;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
             text-align: center;
-        }
-
-        .math-val {
-            font-size: 2rem;
             font-weight: bold;
+            font-size: 1.1rem;
+            color: #856404;
         }
 
         .text-success { color: var(--success); }
@@ -155,7 +170,6 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(40,167,69,0.3);
         }
 
         .summary-box {
@@ -169,18 +183,9 @@
             border-radius: 8px;
             margin-bottom: 15px;
         }
+        .summary-box div span { display: block; font-size: 1.2rem; font-weight: bold; }
 
-        .summary-box div span {
-            display: block;
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-
-        .history-list {
-            max-height: 250px;
-            overflow-y: auto;
-        }
-
+        .history-list { max-height: 220px; overflow-y: auto; }
         .history-item {
             padding: 12px;
             border-bottom: 1px solid #eee;
@@ -197,7 +202,48 @@
 <body>
 
 <div class="container">
-    <h2>⛽ Pump Flow Tracker (Manual Mode)</h2>
+    
+    <div class="card" style="border: 2px solid var(--primary);">
+        <h4>💵 My Pocket Cash Drawer Inventory</h4>
+        <div class="drawer-grid">
+            <div class="drawer-box">
+                <div class="note-title">₹500 Note</div>
+                <div class="note-count" id="count-500">0</div>
+                <button class="counter-btn" onclick="adjustNote(500, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(500, 1)">+</button>
+            </div>
+            <div class="drawer-box">
+                <div class="note-title">₹200 Note</div>
+                <div class="note-count" id="count-200">0</div>
+                <button class="counter-btn" onclick="adjustNote(200, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(200, 1)">+</button>
+            </div>
+            <div class="drawer-box">
+                <div class="note-title">₹100 Note</div>
+                <div class="note-count" id="count-100">0</div>
+                <button class="counter-btn" onclick="adjustNote(100, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(100, 1)">+</button>
+            </div>
+            <div class="drawer-box">
+                <div class="note-title">₹50 Note</div>
+                <div class="note-count" id="count-50">0</div>
+                <button class="counter-btn" onclick="adjustNote(50, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(50, 1)">+</button>
+            </div>
+            <div class="drawer-box">
+                <div class="note-title">₹20 Note</div>
+                <div class="note-count" id="count-20">0</div>
+                <button class="counter-btn" onclick="adjustNote(20, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(20, 1)">+</button>
+            </div>
+            <div class="drawer-box">
+                <div class="note-title">₹10 Note</div>
+                <div class="note-count" id="count-10">0</div>
+                <button class="counter-btn" onclick="adjustNote(10, -1)">-</button>
+                <button class="counter-btn" onclick="adjustNote(10, 1)">+</button>
+            </div>
+        </div>
+    </div>
 
     <div class="card">
         <label>Select Vehicle</label>
@@ -237,6 +283,8 @@
             </div>
         </div>
 
+        <div id="suggestionContainer" class="suggestion-box" style="display: none;"></div>
+
         <button class="btn-submit" onclick="saveTransaction()">Save Entry</button>
     </div>
 
@@ -256,19 +304,36 @@
 <script>
     let selectedVehicle = 'Bike';
     let selectedMode = 'Cash';
-    
-    // Configurable quick shortcuts for instant tap-entry
     let billShortcuts = [50, 100, 150, 200, 500];
     let paidShortcuts = [100, 200, 500, 2000];
+    
+    // Virtual cash drawer state variable
+    let cashDrawer = { 500: 6, 200: 0, 100: 10, 50: 2, 20: 0, 10: 0 };
+    let temporarySuggestedNotes = null;
 
     if(localStorage.getItem('billShortcuts')) billShortcuts = JSON.parse(localStorage.getItem('billShortcuts'));
     if(localStorage.getItem('paidShortcuts')) paidShortcuts = JSON.parse(localStorage.getItem('paidShortcuts'));
+    if(localStorage.getItem('cashDrawer')) cashDrawer = JSON.parse(localStorage.getItem('cashDrawer'));
 
     window.onload = function() {
         cleanOldData();
         renderChips();
+        updateDrawerUI();
         updateLogView();
     };
+
+    function updateDrawerUI() {
+        for (let note in cashDrawer) {
+            document.getElementById(`count-${note}`).innerText = cashDrawer[note];
+        }
+        localStorage.setItem('cashDrawer', JSON.stringify(cashDrawer));
+    }
+
+    function adjustNote(denom, val) {
+        cashDrawer[denom] = Math.max(0, cashDrawer[denom] + val);
+        updateDrawerUI();
+        calculateChange();
+    }
 
     function setVehicle(vehicle) {
         selectedVehicle = vehicle;
@@ -276,21 +341,22 @@
         document.getElementById('btn-' + vehicle).classList.add('active');
     }
 
+    // Adjust visibility depending on transaction type
     function setMode(mode) {
         selectedMode = mode;
         document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('btn-' + mode).classList.add('active');
-        
-        // Hide cash-given inputs completely if transaction is Online
         document.getElementById('paidSection').style.display = (mode === 'Online') ? 'none' : 'block';
-        if(mode === 'Online') document.getElementById('paidAmount').value = '';
+        if(mode === 'Online') {
+            document.getElementById('paidAmount').value = '';
+            document.getElementById('suggestionContainer').style.display = 'none';
+        }
         calculateChange();
     }
 
     function renderChips() {
         billShortcuts.sort((a, b) => a - b);
         paidShortcuts.sort((a, b) => a - b);
-
         document.getElementById('quickBillChips').innerHTML = billShortcuts.map(amt => `<button class="chip" onclick="applyBill(${amt})">₹${amt}</button>`).join('') + `<button class="chip chip-manage" onclick="manageShortcuts('bill')">+/- Edit</button>`;
         document.getElementById('quickPaidChips').innerHTML = paidShortcuts.map(amt => `<button class="chip" onclick="applyPaid(${amt})">₹${amt}</button>`).join('') + `<button class="chip chip-manage" onclick="manageShortcuts('paid')">+/- Edit</button>`;
     }
@@ -298,7 +364,6 @@
     function applyBill(amount) {
         document.getElementById('billAmount').value = amount;
         calculateChange();
-        // Shift focus to cash input automatically to save clicks
         if(selectedMode === 'Cash') document.getElementById('paidAmount').focus();
     }
 
@@ -309,12 +374,11 @@
 
     function manageShortcuts(type) {
         let targetArray = type === 'bill' ? billShortcuts : paidShortcuts;
-        let action = prompt("Type '+' to add custom shortcut (e.g., +300) or '-' to remove (e.g., -500):");
+        let action = prompt("Type '+' to add (e.g. +300) or '-' to remove (e.g. -500):");
         if(!action) return;
-        
         let operation = action.charAt(0);
         let value = parseFloat(action.substring(1).trim());
-        if(isNaN(value)) return alert("Please input a valid number value!");
+        if(isNaN(value)) return alert("Invalid number!");
 
         if(operation === '+') { if(!targetArray.includes(value)) targetArray.push(value); }
         else if(operation === '-') { let index = targetArray.indexOf(value); if(index > -1) targetArray.splice(index, 1); }
@@ -335,15 +399,79 @@
         } else if (paid === Math.ceil(bill) && bill % 1 !== 0) {
             profitPaise = paid - bill;
         }
+        
         document.getElementById('lblReturn').innerText = "₹" + changeToReturn.toFixed(2);
         document.getElementById('lblProfit').innerText = "₹" + profitPaise.toFixed(2);
+
+        // TRIGGER NOTE SUGGESTION LOGIC
+        if (selectedMode === 'Cash' && changeToReturn > 0) {
+            suggestNotesToGive(changeToReturn);
+        } else {
+            document.getElementById('suggestionContainer').style.display = 'none';
+            temporarySuggestedNotes = null;
+        }
+    }
+
+    // SMART SMART NOTES ALGORITHM MATCHING YOUR LIVE POCKET BALANCE
+    function suggestNotesToGive(amountNeeded) {
+        let denominations = [500, 200, 100, 50, 20, 10];
+        let runningAmount = amountNeeded;
+        let suggestionResult = {};
+        
+        // Clone drawer inventory to calculate safely without mutating original state immediately
+        let tempDrawer = { ...cashDrawer };
+
+        for (let denom of denominations) {
+            if (runningAmount >= denom) {
+                let notesNeeded = Math.floor(runningAmount / denom);
+                // Use only what is actually inside your drawer pocket
+                let notesToUse = Math.min(notesNeeded, tempDrawer[denom]);
+                
+                if (notesToUse > 0) {
+                    suggestionResult[denom] = notesToUse;
+                    runningAmount -= (notesToUse * denom);
+                }
+            }
+        }
+
+        const container = document.getElementById('suggestionContainer');
+        if (runningAmount === 0) {
+            // Perfect match found! Build output string
+            let textOutput = "👉 Give Handout Change: ";
+            let parts = [];
+            for (let denom in suggestionResult) {
+                parts.push(`${suggestionResult[denom]} note(s) of ₹${denom}`);
+            }
+            container.innerHTML = textOutput + parts.join(', ');
+            container.style.backgroundColor = "#d4edda";
+            container.style.borderColor = "#28a745";
+            container.style.color = "#155724";
+            container.style.display = "block";
+            temporarySuggestedNotes = suggestionResult; 
+        } else {
+            // Missing specific matching bills in inventory pocket
+            container.innerHTML = `⚠️ Short on cash change notes! Still need to hand out ₹${runningAmount}. Please add more notes above.`;
+            container.style.backgroundColor = "#f8d7da";
+            container.style.borderColor = "#dc3545";
+            container.style.color = "#721c24";
+            container.style.display = "block";
+            temporarySuggestedNotes = null;
+        }
     }
 
     function saveTransaction() {
         const bill = parseFloat(document.getElementById('billAmount').value);
-        if(!bill || bill <= 0) return alert("Please type or choose a valid bill amount!");
+        if(!bill || bill <= 0) return alert("Please specify a bill amount!");
         let paid = (selectedMode === 'Online') ? bill : (parseFloat(document.getElementById('paidAmount').value) || 0);
-        if(selectedMode === 'Cash' && paid < bill) return alert("Error: Cash given is less than the total bill amount!");
+        if(selectedMode === 'Cash' && paid < bill) return alert("Paid cash is less than the bill amount!");
+
+        // DEDUCT FROM LIVE INVENTORY AUTOMATICALLY ON SAVE
+        if (selectedMode === 'Cash' && temporarySuggestedNotes) {
+            for (let denom in temporarySuggestedNotes) {
+                cashDrawer[denom] -= temporarySuggestedNotes[denom];
+            }
+            updateDrawerUI();
+        }
 
         const record = {
             id: Date.now(),
@@ -362,11 +490,12 @@
         data.unshift(record);
         localStorage.setItem('pump_records', JSON.stringify(data));
 
-        // Clear entry panel boxes instantly for the next vehicle queue
         document.getElementById('billAmount').value = '';
         document.getElementById('paidAmount').value = '';
         document.getElementById('lblReturn').innerText = "₹0.00";
         document.getElementById('lblProfit').innerText = "₹0.00";
+        document.getElementById('suggestionContainer').style.display = 'none';
+        temporarySuggestedNotes = null;
         updateLogView();
     }
 
@@ -391,7 +520,7 @@
         document.getElementById('sumCash').innerText = "₹" + cashTotal.toFixed(2);
         document.getElementById('sumOnline').innerText = "₹" + onlineTotal.toFixed(2);
         document.getElementById('sumProfit').innerText = "₹" + profitTotal.toFixed(2);
-        document.getElementById('historyLog').innerHTML = logHtml || '<p style="text-align:center;color:#666;">No entries saved today.</p>';
+        document.getElementById('historyLog').innerHTML = logHtml || '<p style="text-align:center;color:#666;">No logs available.</p>';
     }
 </script>
 </body>
