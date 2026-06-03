@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pump Flow Tracker & Cloud Ledger Pro</title>
-    <!-- Include Firebase App and Database SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
@@ -152,9 +151,28 @@
             background: var(--success); color: white; border: none; border-radius: 8px; cursor: pointer;
         }
 
+        /* PRINT SELECTOR AND CONTROL DESIGN */
+        .print-control-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .select-filter {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: 2px solid var(--dark);
+            border-radius: 8px;
+            background: #fff;
+            cursor: pointer;
+        }
+
         .btn-print {
             width: 100%; padding: 12px; font-size: 1.1rem; font-weight: bold;
-            background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 15px;
+            background: #6f42c1; color: white; border: none; border-radius: 8px; cursor: pointer;
         }
 
         .summary-box {
@@ -185,7 +203,6 @@
 
 <div class="container">
     
-    <!-- Pocket Cash Counter Box -->
     <div class="card" style="border: 2px solid var(--primary);">
         <div class="wallet-banner">Pocket Cash Balance: <span id="totalWalletCash">₹0.00</span></div>
         <div class="drawer-grid">
@@ -229,20 +246,17 @@
     </div>
 
     <div class="card">
-        <!-- Staff Attribution Field -->
         <div class="form-group">
             <label>Fueled By (Staff Name)</label>
-            <input type="text" id="staffName" class="text-input" placeholder="Enter name (e.g., Rohit, Amit)">
+            <input type="text" id="staffName" class="text-input" placeholder="Enter name (e.g., Rohit, Amit)" oninput="saveStaffName()">
         </div>
 
-        <!-- Fuel Selector Option -->
         <label>Select Fuel Type</label>
         <div class="grid-2">
             <button id="fuel-Petrol" class="btn-choice fuel-btn active" onclick="setFuel('Petrol')">⛽ Petrol</button>
             <button id="fuel-Diesel" class="btn-choice fuel-btn fuel-diesel" onclick="setFuel('Diesel')">🚜 Diesel</button>
         </div>
 
-        <!-- Vehicle Select -->
         <label>Select Vehicle</label>
         <div class="grid-4">
             <button id="btn-Bike" class="btn-choice vehicle-btn active" onclick="setVehicle('Bike')">Bike</button>
@@ -251,28 +265,24 @@
             <button id="btn-Truck" class="btn-choice vehicle-btn" onclick="setVehicle('Truck')">Truck</button>
         </div>
 
-        <!-- Payment Mode -->
         <label>Select Payment Mode</label>
         <div class="grid-2">
             <button id="btn-Cash" class="btn-choice mode-btn active" onclick="setMode('Cash')">Cash</button>
             <button id="btn-Online" class="btn-choice mode-btn" onclick="setMode('Online')">Online</button>
         </div>
 
-        <!-- Bill Amount Input Section -->
         <div class="form-group">
             <label>1. Bill Amount (₹)</label>
             <input type="number" step="0.01" id="billAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
             <div class="chip-container" id="quickBillChips"></div>
         </div>
 
-        <!-- Paid Amount Input Section -->
         <div class="form-group" id="paidSection">
             <label style="color: #007bff;">2. Cash Given by Customer (₹)</label>
             <input type="number" step="0.01" id="paidAmount" class="big-input" placeholder="0.00" oninput="calculateChange()">
             <div class="chip-container" id="quickPaidChips"></div>
         </div>
 
-        <!-- Live Calculation Outputs -->
         <div class="math-panel">
             <div class="math-box">
                 <div style="font-weight: bold;">Return to Customer</div>
@@ -284,31 +294,35 @@
             </div>
         </div>
 
-        <!-- Live Smart Suggestion Box -->
         <div id="suggestionContainer" class="suggestion-box" style="display: none;"></div>
 
         <button class="btn-submit" onclick="saveTransaction()">Save Entry</button>
     </div>
 
-    <!-- SUMMARY LOGS -->
     <div class="card">
-        <h3>Today's Summary Ledger</h3>
+        <h3>Summary Ledger</h3>
         <div class="summary-box">
             <div>Cash Total<span id="sumCash">₹0</span></div>
             <div>Online Total<span id="sumOnline">₹0</span></div>
             <div>Extra Profit<span id="sumProfit">₹0</span></div>
         </div>
 
-        <h3>Recent Records</h3>
+        <h3>Records List</h3>
         <div class="history-list" id="historyLog"></div>
 
-        <button class="btn-print" onclick="window.print()">🖨️ PRINT TRANSACTION LIST</button>
+        <div class="print-control-box">
+            <select id="dateFilter" class="select-filter" onchange="filterDataView()">
+                <option value="today">📅 Today's Data</option>
+                <option value="yesterday">⏳ Yesterday's Data</option>
+                <option value="all">🌐 All Records</option>
+            </select>
+            <button class="btn-print" onclick="window.print()">🖨️ PRINT LIST</button>
+        </div>
     </div>
 </div>
 
 <script>
     // --- FIREBASE CONFIGURATION CONFIG ---
-    // Replace the configuration details below with your web app's Firebase parameters
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -331,37 +345,70 @@
     let paidShortcuts = [100, 200, 500, 2000];
     let cashDrawer = { 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0 };
     let temporarySuggestedNotes = null;
+    let cachedTransactionsList = []; // Cache from cloud to allow localized filtering instantly
 
     if(localStorage.getItem('billShortcuts')) billShortcuts = JSON.parse(localStorage.getItem('billShortcuts'));
     if(localStorage.getItem('paidShortcuts')) paidShortcuts = JSON.parse(localStorage.getItem('paidShortcuts'));
 
     window.onload = function() {
+        if(localStorage.getItem('savedStaffName')) {
+            document.getElementById('staffName').value = localStorage.getItem('savedStaffName');
+        }
         renderChips();
         listenToCloudData();
     };
 
-    // Listen to live database updates across all devices
+    function saveStaffName() {
+        const currentName = document.getElementById('staffName').value;
+        localStorage.setItem('savedStaffName', currentName);
+    }
+
     function listenToCloudData() {
-        // Sync Cash Drawer Live
         database.ref('cashDrawer').on('value', (snapshot) => {
             if(snapshot.exists()) {
                 cashDrawer = snapshot.val();
-                updateDrawerUI(false); // Update UI without re-saving back to database loop
+                updateDrawerUI(false); 
             } else {
                 database.ref('cashDrawer').set(cashDrawer);
             }
         });
 
-        // Sync Ledger Transactions Live
         database.ref('transactions').orderByChild('timestamp').on('value', (snapshot) => {
-            let data = [];
+            cachedTransactionsList = [];
             snapshot.forEach((childSnapshot) => {
                 let item = childSnapshot.val();
-                item.id = childSnapshot.key; // track unique entry key
-                data.unshift(item); // Show newest items on top
+                item.id = childSnapshot.key; 
+                cachedTransactionsList.unshift(item); 
             });
-            renderLogView(data);
+            filterDataView(); // Trigger list population matching selection filter
         });
+    }
+
+    // INTERACTIVE DATE FILTER ENGINE
+    function filterDataView() {
+        const targetSelection = document.getElementById('dateFilter').value;
+        
+        const now = new Date();
+        
+        // Start and end parameters for Today
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const endOfToday = startOfToday + (24 * 60 * 60 * 1000) - 1;
+        
+        // Start and end parameters for Yesterday
+        const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
+        const endOfYesterday = startOfToday - 1;
+
+        let filteredRecords = [];
+
+        if (targetSelection === 'today') {
+            filteredRecords = cachedTransactionsList.filter(item => item.timestamp >= startOfToday && item.timestamp <= endOfToday);
+        } else if (targetSelection === 'yesterday') {
+            filteredRecords = cachedTransactionsList.filter(item => item.timestamp >= startOfYesterday && item.timestamp <= endOfYesterday);
+        } else {
+            filteredRecords = cachedTransactionsList; // 'all' records selection
+        }
+
+        renderLogView(filteredRecords);
     }
 
     function updateDrawerUI(shouldPushToCloud = true) {
@@ -389,6 +436,7 @@
         document.getElementById('fuel-' + fuel).classList.add('active');
     }
 
+    // Vehicle selectors setup
     function setVehicle(vehicle) {
         selectedVehicle = vehicle;
         document.querySelectorAll('.vehicle-btn').forEach(btn => btn.classList.remove('active'));
@@ -531,10 +579,8 @@
             profit: parseFloat(document.getElementById('lblProfit').innerText.replace('₹','')) || 0
         };
 
-        // Push record directly to Cloud database
         database.ref('transactions').push(record);
 
-        // Reset Inputs
         document.getElementById('billAmount').value = '';
         document.getElementById('paidAmount').value = '';
         document.getElementById('lblReturn').innerText = "₹0.00";
@@ -545,7 +591,6 @@
 
     function deleteRecord(recordId) {
         if(!confirm("Are you sure you want to delete this transaction entry?")) return;
-        // Delete item directly from Cloud Database
         database.ref('transactions').child(recordId).remove();
     }
 
@@ -574,7 +619,7 @@
         document.getElementById('sumCash').innerText = "₹" + cashTotal.toFixed(2);
         document.getElementById('sumOnline').innerText = "₹" + onlineTotal.toFixed(2);
         document.getElementById('sumProfit').innerText = "₹" + profitTotal.toFixed(2);
-        document.getElementById('historyLog').innerHTML = logHtml || '<p style="text-align:center;color:#666;">No records available.</p>';
+        document.getElementById('historyLog').innerHTML = logHtml || '<p style="text-align:center;color:#666;">No records found for this time choice.</p>';
     }
 </script>
 </body>
